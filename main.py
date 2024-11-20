@@ -13,8 +13,8 @@ gamma = 0.99           # Discount factor
 epsilon = 1.0          # Initial epsilon for ε-greedy
 epsilon_decay = 0.995  # Decay rate for epsilon
 epsilon_min = 0.01     # Minimum epsilon
-episodes = 5000        # Number of episodes
-max_steps = 100        # Max steps per episode
+episodes = 10000        # Number of episodes
+max_steps = 500        # Max steps per episode
 
 # Initialize Q-table with zeros
 q_table = np.zeros((env.observation_space.n, env.action_space.n))
@@ -59,7 +59,7 @@ for episode in range(episodes):
 
 # Test the trained agent
 success_rate = 0
-test_episodes = 100
+test_episodes = 500
 for _ in range(test_episodes):
     state = env.reset()
     for _ in range(max_steps):
@@ -70,4 +70,5 @@ for _ in range(test_episodes):
             break
 
 print(f"Success rate over {test_episodes} episodes: {success_rate / test_episodes * 100:.2f}%")
+print(q_table)
 env.close()
