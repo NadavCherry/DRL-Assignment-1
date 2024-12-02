@@ -57,20 +57,46 @@ if __name__ == "__main__":
             """ Test the trained agent """
             total_rewards = []
             for episode in range(num_episodes):
-                state = env.reset()
+                # Reset environment and get initial state
+                reset_output = env.reset()
+                if isinstance(reset_output, tuple):
+                    state, _ = reset_output  # Unpack state and additional info
+                else:
+                    state = reset_output  # For older Gym versions
+
+                if state is None or len(state) != env.observation_space.shape[0]:
+                    raise ValueError(f"Invalid state returned by env.reset(): {state}")
+
                 done = False
                 total_reward = 0
                 while not done:
-                    state = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
-                    action = self(state).argmax().item()
-                    next_state, reward, terminated, truncated, _ = env.step(action)
+                    # Ensure state is valid
+                    if state is None or len(state) != env.observation_space.shape[0]:
+                        raise ValueError(f"Invalid state encountered during episode: {state}")
+
+                    state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+                    action = self(state_tensor).argmax().item()
+
+                    # Perform environment step
+                    step_output = env.step(action)
+                    if isinstance(step_output, tuple) and len(step_output) == 5:
+                        next_state, reward, terminated, truncated, _ = step_output
+                    else:
+                        raise ValueError(f"Unexpected output from env.step(): {step_output}")
+
                     done = terminated or truncated
                     total_reward += reward
+
                     if done:
                         break
+
                     state = next_state
+
                 total_rewards.append(total_reward)
-            return sum(total_rewards) / len(total_rewards)
+
+            # Calculate average reward
+            avg_reward = sum(total_rewards) / len(total_rewards)
+            return avg_reward
 
     # Initialize DQN agent
     agent = DQNLightningFixed(
