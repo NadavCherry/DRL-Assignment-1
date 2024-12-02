@@ -1,5 +1,6 @@
 import torch.nn as nn
 
+
 class DQNNetwork(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_layers):
         super(DQNNetwork, self).__init__()
