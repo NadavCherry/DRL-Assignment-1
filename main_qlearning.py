@@ -65,11 +65,13 @@ for episode in range(episodes):
     if episode in [0, 500, 2000, 4999]:
         qtable_snapshots[episode] = agent.q_table.copy()
         plot_q_table_values(agent.q_table, episode)
-        plot_q_values_map(agent.q_table, env, int(np.sqrt(env.observation_space.n)), f"Q-Values and Policy at Episode {episode}")
+        plot_q_values_map(agent.q_table, env, int(np.sqrt(env.observation_space.n)),
+                          f"Q-Values and Policy at Episode {episode}")
+
 
 # Plot training metrics
-plot_average_rewards(rewards, interval=100)
-plot_average_steps(steps_to_goal, interval=100)
+plot_average_rewards(rewards)
+plot_average_steps(steps_to_goal)
 
 # Test the agent
 success_rate = agent.test_agent(env, max_steps, num_episodes=100)
