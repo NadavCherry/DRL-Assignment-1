@@ -28,6 +28,10 @@ if __name__ == "__main__":
 
     # Ensure the environment reset is handled after termination
     class DQNLightningFixed(DQNLightning):
+        # Initialize lists for tracking
+        total_rewards = []  # To track rewards per episode
+        losses = []  # To track losses per training step
+
         def train_dataloader(self):
             # Creating a dummy dataset for demonstration
             train_data = TensorDataset(
@@ -43,6 +47,7 @@ if __name__ == "__main__":
             """ Forward pass through the Q-network """
             return self.q_network(state)
 
+
         def training_step(self, batch, batch_idx):
             state, action = batch
             q_values = self(state)
@@ -50,6 +55,10 @@ if __name__ == "__main__":
             # For example:
             target = torch.rand_like(q_values)  # Dummy target for illustration
             loss = MSELoss()(q_values, target)
+
+            # Log the loss
+            self.losses.append(loss.item())  # Store loss for plotting
+
             self.log("train_loss", loss)
             return loss
 
@@ -57,46 +66,67 @@ if __name__ == "__main__":
             """ Test the trained agent """
             total_rewards = []
             for episode in range(num_episodes):
-                # Reset environment and get initial state
                 reset_output = env.reset()
-                if isinstance(reset_output, tuple):
-                    state, _ = reset_output  # Unpack state and additional info
-                else:
-                    state = reset_output  # For older Gym versions
-
-                if state is None or len(state) != env.observation_space.shape[0]:
-                    raise ValueError(f"Invalid state returned by env.reset(): {state}")
+                state, _ = reset_output if isinstance(reset_output, tuple) else (reset_output, {})
 
                 done = False
                 total_reward = 0
                 while not done:
-                    # Ensure state is valid
-                    if state is None or len(state) != env.observation_space.shape[0]:
-                        raise ValueError(f"Invalid state encountered during episode: {state}")
-
                     state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
                     action = self(state_tensor).argmax().item()
-
-                    # Perform environment step
                     step_output = env.step(action)
-                    if isinstance(step_output, tuple) and len(step_output) == 5:
-                        next_state, reward, terminated, truncated, _ = step_output
-                    else:
-                        raise ValueError(f"Unexpected output from env.step(): {step_output}")
-
+                    next_state, reward, terminated, truncated, _ = step_output
                     done = terminated or truncated
                     total_reward += reward
-
-                    if done:
-                        break
-
                     state = next_state
-
                 total_rewards.append(total_reward)
+            self.total_rewards = total_rewards  # Store total rewards for plotting
+            return sum(total_rewards) / len(total_rewards)
 
-            # Calculate average reward
-            avg_reward = sum(total_rewards) / len(total_rewards)
-            return avg_reward
+        # def test_agent(self, env, num_episodes=100):
+        #     """ Test the trained agent """
+        #     total_rewards = []
+        #     for episode in range(num_episodes):
+        #         # Reset environment and get initial state
+        #         reset_output = env.reset()
+        #         if isinstance(reset_output, tuple):
+        #             state, _ = reset_output  # Unpack state and additional info
+        #         else:
+        #             state = reset_output  # For older Gym versions
+        #
+        #         if state is None or len(state) != env.observation_space.shape[0]:
+        #             raise ValueError(f"Invalid state returned by env.reset(): {state}")
+        #
+        #         done = False
+        #         total_reward = 0
+        #         while not done:
+        #             # Ensure state is valid
+        #             if state is None or len(state) != env.observation_space.shape[0]:
+        #                 raise ValueError(f"Invalid state encountered during episode: {state}")
+        #
+        #             state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+        #             action = self(state_tensor).argmax().item()
+        #
+        #             # Perform environment step
+        #             step_output = env.step(action)
+        #             if isinstance(step_output, tuple) and len(step_output) == 5:
+        #                 next_state, reward, terminated, truncated, _ = step_output
+        #             else:
+        #                 raise ValueError(f"Unexpected output from env.step(): {step_output}")
+        #
+        #             done = terminated or truncated
+        #             total_reward += reward
+        #
+        #             if done:
+        #                 break
+        #
+        #             state = next_state
+        #
+        #         total_rewards.append(total_reward)
+        #
+        #     # Calculate average reward
+        #     avg_reward = sum(total_rewards) / len(total_rewards)
+        #     return avg_reward
 
     # Initialize DQN agent
     agent = DQNLightningFixed(
@@ -125,7 +155,7 @@ if __name__ == "__main__":
     trainer.fit(agent)
 
     # Test the trained agent
-    avg_reward = agent.test_agent(env, num_episodes=100)
+    avg_reward = agent.test_agent(env, num_episodes=1000)
     print(f"Average reward over 100 test episodes: {avg_reward:.2f}")
 
     # Plot metrics
