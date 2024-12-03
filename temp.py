@@ -1,3 +1,5 @@
+import glob
+import os
 import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
@@ -7,9 +9,8 @@ from collections import deque
 import pytorch_lightning as pl
 import torch.nn as nn
 import torch.optim as optim
-import os
-import glob
-
+import neptune
+from dotenv import load_dotenv
 
 # Custom Dataset
 class ReplayDataset(Dataset):
@@ -68,6 +69,35 @@ class DQNAgent(pl.LightningModule):
         self.loss_fn = nn.MSELoss()
         self.memory = deque(maxlen=10000)
 
+        # Load environment variables
+        load_dotenv()
+
+        # Retrieve and clean up the API token
+        api_token = os.getenv("NEPTUNE_API_TOKEN")
+        if not api_token:
+            raise ValueError("NEPTUNE_API_TOKEN not found in environment variables.")
+        api_token = api_token.strip()  # Remove leading/trailing whitespace or newlines
+
+        self.run = neptune.init_run(
+            project="nadavcherry/dp1",
+            capture_hardware_metrics=True,
+            api_token=api_token,
+            tags=f"DRL-1",
+        )
+
+        # Log parameters
+        self.run["parameters"] = {
+            "state_size": state_size,
+            "action_size": action_size,
+            "hidden_layers": hidden_layers,
+            "learning_rate": lr,
+            "gamma": gamma,
+            "batch_size": batch_size,
+            "epsilon": epsilon,
+            "epsilon_min": epsilon_min,
+            "epsilon_decay": epsilon_decay,
+        }
+
     def forward(self, state):
         return self.q_network(state)
 
@@ -89,6 +119,7 @@ class DQNAgent(pl.LightningModule):
 
         loss = self.loss_fn(q_values, target_q_values)
         self.log("loss", loss)
+        self.run["loss"].log(loss)  # Log to Neptune
         return loss
 
     def configure_optimizers(self):
@@ -102,6 +133,7 @@ class DQNAgent(pl.LightningModule):
         """Update the target network and decay epsilon after each epoch."""
         self.target_network.load_state_dict(self.q_network.state_dict())
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
+        self.run["epsilon"].log(self.epsilon)  # Log to Neptune
 
     def update_target_network(self):
         """Update the target network to match the Q-network."""
@@ -123,6 +155,7 @@ def collect_data(agent, env, episodes=100):
             episode_reward += reward
         total_rewards.append(episode_reward)
     print(f"Average reward in collected episodes: {np.mean(total_rewards):.2f}")
+    agent.run["total_rewards"].log(total_rewards)  # Log to Neptune
 
 
 def train_agent(agent, env, episodes=500, data_collection_episodes=10, update_target_every=10):
@@ -139,8 +172,6 @@ def train_agent(agent, env, episodes=500, data_collection_episodes=10, update_ta
 
     # Function to find the last checkpoint
     def get_last_checkpoint(log_dir="lightning_logs"):
-        import glob
-        import os
         checkpoints = glob.glob(os.path.join(log_dir, "**", "checkpoints", "last.ckpt"), recursive=True)
         return max(checkpoints, key=os.path.getctime) if checkpoints else None
 
@@ -168,7 +199,6 @@ def train_agent(agent, env, episodes=500, data_collection_episodes=10, update_ta
 
         # Log progress
         print(f"Episodes completed: {total_collected_episodes}, Epsilon: {agent.epsilon:.4f}")
-
 
 
 
@@ -207,3 +237,4 @@ if __name__ == "__main__":
     agent = DQNAgent(state_size, action_size, hidden_layers)
     train_agent(agent, env, episodes=500, data_collection_episodes=10, update_target_every=10)
     test_agent(agent, env)
+    agent.run.stop()
